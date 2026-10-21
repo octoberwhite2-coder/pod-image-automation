@@ -1,0 +1,40 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+config.json
+comfy_root.txt
+*.pem
+*.key
+*.p12
+# Business inputs, logs, backups and generated data
+prompts.csv
+batch_*.json
+*_snapshot.json
+*.log
+*.bak
+*.bak.*
+work/
+files/
+output/
+outputs/
+*.sqlite*
+*.db
+# Dependencies, model weights and downloaded executables
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+node_modules/
+*.exe
+*.dll
+*.zip
+*.safetensors
+*.gguf
+*.onnx
+*.pth
+realesrgan-ncnn-vulkan-*/
+.DS_Store
+.pytest_cache/
+coverage.xml
+.coverage

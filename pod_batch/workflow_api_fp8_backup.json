@@ -1,0 +1,295 @@
+{
+  "6": {
+    "inputs": {
+      "text": "a simple geometric mountain icon, flat vector illustration",
+      "clip": [
+        "30",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "31",
+        0
+      ],
+      "vae": [
+        "30",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "27": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "空Latent图像（SD3）"
+    }
+  },
+  "30": {
+    "inputs": {
+      "ckpt_name": "flux1-schnell-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    }
+  },
+  "31": {
+    "inputs": {
+      "seed": 1046307134804530,
+      "steps": 4,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": [
+        "30",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "33",
+        0
+      ],
+      "latent_image": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "33": {
+    "inputs": {
+      "text": "a simple geometric mountain icon, flat vector illustration",
+      "clip": [
+        "30",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "40": {
+    "inputs": {
+      "bg_removal_model": [
+        "41",
+        0
+      ],
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "RemoveBackground",
+    "_meta": {
+      "title": "移除背景"
+    }
+  },
+  "41": {
+    "inputs": {
+      "bg_removal_name": "RMBG-2.0\\model.safetensors"
+    },
+    "class_type": "LoadBackgroundRemovalModel",
+    "_meta": {
+      "title": "加载背景移除模型"
+    }
+  },
+  "44": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "45",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "45": {
+    "inputs": {
+      "image": [
+        "8",
+        0
+      ],
+      "alpha": [
+        "46",
+        0
+      ]
+    },
+    "class_type": "JoinImageWithAlpha",
+    "_meta": {
+      "title": "合并图像Alpha"
+    }
+  },
+  "46": {
+    "inputs": {
+      "mask": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "反转遮罩"
+    }
+  },
+  "48": {
+    "inputs": {
+      "image": "white.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "49": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 380,
+      "height": 380,
+      "crop": "disabled",
+      "image": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "缩放图像"
+    }
+  },
+  "53": {
+    "inputs": {
+      "x": 335,
+      "y": 350,
+      "resize_source": false,
+      "destination": [
+        "48",
+        0
+      ],
+      "source": [
+        "49",
+        0
+      ],
+      "mask": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "ImageCompositeMasked",
+    "_meta": {
+      "title": "合成图像（遮罩）"
+    }
+  },
+  "54": {
+    "inputs": {
+      "filename_prefix": "white/design/T-white",
+      "images": [
+        "53",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "59": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 380,
+      "height": 380,
+      "crop": "disabled",
+      "image": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "缩放图像"
+    }
+  },
+  "60": {
+    "inputs": {
+      "image": "black.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "61": {
+    "inputs": {
+      "x": 335,
+      "y": 350,
+      "resize_source": false,
+      "destination": [
+        "60",
+        0
+      ],
+      "source": [
+        "59",
+        0
+      ],
+      "mask": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "ImageCompositeMasked",
+    "_meta": {
+      "title": "合成图像（遮罩）"
+    }
+  },
+  "62": {
+    "inputs": {
+      "filename_prefix": "black/design/T-black",
+      "images": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  }
+}
