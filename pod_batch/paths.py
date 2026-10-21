@@ -9,6 +9,10 @@ ComfyUI 的位置。换机器部署时, 只有这一个文件可能需要改。
 """
 
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import env_config  # noqa: E402  COMFY_ROOT may be supplied in the local .env.
 
 # 常见位置, 按顺序试。新机器装在别处就设环境变量或写 comfy_root.txt, 不用改代码。
 CANDIDATES = [

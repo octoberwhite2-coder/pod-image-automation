@@ -16,7 +16,9 @@ import logging
 import subprocess
 from datetime import datetime
 
-from env_config import APP_ID, APP_SECRET, APP_TOKEN, TABLE_ID, REVIEWER_OPEN_IDS
+from env_config import APP_ID, APP_SECRET, APP_TOKEN, TABLE_ID, REVIEWER_OPEN_IDS, require_feishu
+
+require_feishu("FEISHU_BITABLE_TABLE_ID")
 
 import numpy as np
 import cv2
@@ -26,6 +28,16 @@ from lark_oapi.api.bitable.v1 import *
 from lark_oapi.api.drive.v1 import *
 from lark_oapi.api.im.v1 import *
 from rembg import remove, new_session
+
+def run_realesrgan(cmd):
+    """Resolve a configured executable or PATH name before choosing its model directory."""
+    executable = shutil.which(cmd[0])
+    if not executable:
+        raise FileNotFoundError("找不到 Real-ESRGAN，请设置 REALESRGAN_EXE 或将程序目录加入 PATH。")
+    executable = os.path.abspath(executable)
+    return subprocess.run([executable, *cmd[1:]], cwd=os.path.dirname(executable),
+                          capture_output=True, text=True)
+
 
 # ================== 【配置区】开始 —— 这些必须改成你自己的 ==================
 
@@ -235,8 +247,7 @@ def run_superres(src_path, record_id, sr_model, target_long):
                    "-n", sr_model, "-s", REALESRGAN_SCALE,
                    "-t", str(SR_TILE)]        # 分块处理, 防爆显存
             log.info("超分放大第%d次: %s", step, " ".join(cmd))
-            r = subprocess.run(cmd, cwd=os.path.dirname(REALESRGAN_EXE),
-                               capture_output=True, text=True)
+            r = run_realesrgan(cmd)
             if r.returncode != 0 or not os.path.exists(up_path):
                 raise RuntimeError(f"超分失败: {r.stderr[-500:]}")
             cur_path = up_path
@@ -392,7 +403,7 @@ def update_record(record_id, fields):
 
 def notify_reviewers(record_id):
     """给每个审核人发飞书消息"""
-    base_url = os.environ.get("FEISHU_BASE_URL", "https://example.feishu.cn").rstrip("/") + f"/base/{APP_TOKEN}?table={TABLE_ID}"
+    base_url = (os.environ.get("FEISHU_BASE_URL") or "https://example.feishu.cn").rstrip("/") + f"/base/{APP_TOKEN}?table={TABLE_ID}"
     text = f"有一张新图已处理完成, 待审核。\n请到多维表格查看并审核。\n{base_url}"
     for open_id in REVIEWER_OPEN_IDS:
         req = CreateMessageRequest.builder().receive_id_type("open_id") \

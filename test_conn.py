@@ -2,7 +2,9 @@
 import lark_oapi as lark
 from lark_oapi.api.bitable.v1 import *
 
-from env_config import APP_ID, APP_SECRET, APP_TOKEN, TABLE_ID
+from env_config import APP_ID, APP_SECRET, APP_TOKEN, TABLE_ID, require_feishu
+
+require_feishu("FEISHU_BITABLE_TABLE_ID")
 
 client = lark.Client.builder().app_id(APP_ID).app_secret(APP_SECRET).domain(lark.FEISHU_DOMAIN).build()
 

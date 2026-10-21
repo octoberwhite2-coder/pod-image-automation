@@ -12,11 +12,12 @@
 
 import argparse
 import collections
+import os
 import sys
 
 import feishu_schema as fs
 
-TABLE_ID = "EXAMPLE_FEISHU_ID"
+TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "")
 
 
 def log(msg):
@@ -32,6 +33,7 @@ def main():
     parser.add_argument("--raw", action="store_true", help="附上完整提示词原文")
     args = parser.parse_args()
 
+    fs.require("FEISHU_PROMPT_TABLE_ID")
     token = fs.get_token()
     records = fs.list_all_records(token, TABLE_ID)
 

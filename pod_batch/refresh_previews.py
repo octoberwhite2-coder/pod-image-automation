@@ -23,7 +23,7 @@ import feishu_batch          # noqa: E402  复用上传附件的逻辑
 import feishu_schema as fs   # noqa: E402
 import paths                 # noqa: E402
 
-TABLE_ID = "EXAMPLE_FEISHU_ID"
+TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "")
 TEMPLATE = "white_front"     # 用白T正面大图当预览(底图_印刷位)
 
 
@@ -41,6 +41,7 @@ def main():
     if not os.path.isdir(mockup_dir):
         raise SystemExit("找不到套图目录: %s\n先跑 python compose_mockups.py" % mockup_dir)
 
+    fs.require("FEISHU_PROMPT_TABLE_ID")
     token = fs.get_token()
     records = sorted(fs.list_all_records(token, TABLE_ID),
                      key=lambda r: int(fs.field_text(r["fields"].get("编号")) or 0))

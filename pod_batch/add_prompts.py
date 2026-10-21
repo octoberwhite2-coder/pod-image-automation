@@ -16,11 +16,12 @@
 
 import argparse
 import json
+import os
 import sys
 
 import feishu_schema as fs
 
-TABLE_ID = "EXAMPLE_FEISHU_ID"
+TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "")
 VALID_SERIES = {"动物", "节日", "复古", "物件", "卡通形象"}
 
 
@@ -44,6 +45,7 @@ def main():
     if not isinstance(items, list):
         raise SystemExit("JSON 顶层要是一个数组")
 
+    fs.require("FEISHU_PROMPT_TABLE_ID")
     token = fs.get_token()
     existing = {fs.field_text((r.get("fields") or {}).get("完整提示词"))
                 for r in fs.list_all_records(token, TABLE_ID)}

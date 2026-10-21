@@ -118,7 +118,8 @@ def copy_assets():
 def check_credentials():
     try:
         sys.path.insert(0, os.path.dirname(HERE))
-        import env_config  # noqa: F401
+        import env_config
+        env_config.require_feishu("FEISHU_PROMPT_TABLE_ID")
     except SystemExit as e:
         log("  × 凭证没配好: %s" % e)
         return False

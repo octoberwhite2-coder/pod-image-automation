@@ -27,7 +27,7 @@ import feishu_schema as fs   # noqa: E402
 import paths                 # noqa: E402
 import push_to_erp           # noqa: E402  复用带认证的请求
 
-TABLE_ID = "EXAMPLE_FEISHU_ID"
+TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "")
 MOCKUP_SUFFIX = "_white_front.png"   # 用白T正面大图当预览
 
 # 预览图压缩参数。套图是照片底图, JPEG 足够, 体积能从 600KB 降到 ~150KB
@@ -61,6 +61,7 @@ def to_jpeg_b64(path):
 
 def collect():
     """从飞书读出所有要迁的记录"""
+    fs.require("FEISHU_PROMPT_TABLE_ID")
     token = fs.get_token()
     records = fs.list_all_records(token, TABLE_ID)
     rows = []

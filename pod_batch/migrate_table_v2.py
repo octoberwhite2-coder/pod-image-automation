@@ -20,7 +20,7 @@ import sys
 
 import feishu_schema as fs
 
-TABLE_ID = "EXAMPLE_FEISHU_ID"
+TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "")
 HERE = os.path.dirname(os.path.abspath(__file__))
 SNAPSHOT = os.path.join(HERE, "_migrate_snapshot.json")
 
@@ -35,6 +35,7 @@ def log(msg):
 
 
 def main():
+    fs.require("FEISHU_PROMPT_TABLE_ID")
     token = fs.get_token()
 
     # ---- 1. 先把公式算出来的提示词抓下来存盘 ----

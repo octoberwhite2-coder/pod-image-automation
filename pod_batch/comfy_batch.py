@@ -23,9 +23,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import env_config  # noqa: E402  Load optional .env without requiring service credentials.
+
 # ================== 【配置区】 ==================
 
-COMFY_HOST = "http://127.0.0.1:8188"
+COMFY_HOST = (os.environ.get("COMFY_HOST") or "http://127.0.0.1:8188").rstrip("/")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORKFLOW_FILE = os.path.join(HERE, "workflow_api.json")

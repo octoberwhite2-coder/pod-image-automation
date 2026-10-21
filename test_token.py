@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import urllib.request, json
 
-from env_config import APP_ID, APP_SECRET
+from env_config import APP_ID, APP_SECRET, require
+
+require("FEISHU_APP_ID")
+require("FEISHU_APP_SECRET")
 
 # 检查读到的值有没有空格/长度异常(不打印完整密钥)
-print("Credentials loaded; values hidden.")
 print("Credentials loaded; values hidden.")
 print("-" * 40)
 

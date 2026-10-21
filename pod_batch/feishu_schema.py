@@ -16,7 +16,7 @@ import urllib.request
 
 # 凭证在上一级目录的 env_config.py + .env, 和抠图服务共用一套
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from env_config import APP_ID, APP_SECRET, APP_TOKEN  # noqa: E402
+from env_config import APP_ID, APP_SECRET, APP_TOKEN, require, require_feishu  # noqa: E402
 
 HOST = "https://open.feishu.cn"
 
@@ -51,15 +51,20 @@ def call(path, token=None, body=None, method=None, tries=3):
 
 
 def get_token():
+    require_feishu()
     return call("/open-apis/auth/v3/tenant_access_token/internal",
                 body={"app_id": APP_ID, "app_secret": APP_SECRET})["tenant_access_token"]
 
 
 def fields_path(table_id):
+    if not table_id:
+        raise SystemExit("请设置 FEISHU_PROMPT_TABLE_ID。")
     return "/open-apis/bitable/v1/apps/%s/tables/%s/fields" % (APP_TOKEN, table_id)
 
 
 def records_path(table_id):
+    if not table_id:
+        raise SystemExit("请设置 FEISHU_PROMPT_TABLE_ID。")
     return "/open-apis/bitable/v1/apps/%s/tables/%s/records" % (APP_TOKEN, table_id)
 
 

@@ -1,0 +1,7 @@
+# Optional: install in a dedicated Python 3.11/3.12 environment.
+# ComfyUI, Real-ESRGAN binaries and model weights are installed separately.
+-r requirements.txt
+numpy
+opencv-python-headless
+lark-oapi
+rembg[cpu]

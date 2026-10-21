@@ -26,7 +26,7 @@ import urllib.request
 
 # 复用上一级目录的凭证读取, 和 comfy_batch 的提交逻辑
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from env_config import APP_ID, APP_SECRET, APP_TOKEN  # noqa: E402
+from env_config import APP_ID, APP_SECRET, APP_TOKEN, require_feishu  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import comfy_batch      # noqa: E402
@@ -36,7 +36,7 @@ import paths            # noqa: E402
 # ================== 【配置区】 ==================
 
 # 提示词库表(和抠图工作台在同一个 base, 但是不同的表)
-PROMPT_TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "EXAMPLE_FEISHU_ID")
+PROMPT_TABLE_ID = os.environ.get("FEISHU_PROMPT_TABLE_ID", "")
 
 # 国内飞书。用国际版 Lark 的话改成 https://open.larksuite.com
 FEISHU_HOST = "https://open.feishu.cn"
@@ -126,6 +126,7 @@ def request_json(url, token=None, body=None, method=None, tries=3):
 
 
 def get_token():
+    require_feishu("FEISHU_PROMPT_TABLE_ID")
     result = request_json(
         FEISHU_HOST + "/open-apis/auth/v3/tenant_access_token/internal",
         body={"app_id": APP_ID, "app_secret": APP_SECRET},

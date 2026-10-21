@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,12 +31,19 @@ import env_config  # noqa: E402  只为触发 .env 加载
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-ERP_URL = os.environ.get("ERP_URL", "https://erp.example.com").rstrip("/")
+ERP_URL = os.environ.get("ERP_URL", "").rstrip("/")
 ERP_USER = os.environ.get("ERP_USER", "")
 ERP_PASS = os.environ.get("ERP_PASS", "")
 
-# 走代理会绕到国外, 这里强制直连
-_direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+class NoAuthRedirect(urllib.request.HTTPRedirectHandler):
+    """Do not forward Basic authentication to a redirect target."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+# 保留原客户端直连行为；认证请求不跟随重定向。
+_direct = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoAuthRedirect())
 
 
 def log(msg):
@@ -43,11 +51,20 @@ def log(msg):
 
 
 def need_creds():
-    if not ERP_USER or not ERP_PASS:
-        raise SystemExit(
-            "缺少 ERP 登录信息。请在 %s 里加上:\n"
-            "    ERP_URL=%s\n    ERP_USER=你的用户名\n    ERP_PASS=你的密码"
-            % (os.path.join(os.path.dirname(HERE), ".env"), ERP_URL))
+    if not ERP_URL or not ERP_USER or not ERP_PASS:
+        raise SystemExit("请在本地 .env 或环境变量中设置 ERP_URL、ERP_USER、ERP_PASS。")
+    try:
+        target = urllib.parse.urlsplit(ERP_URL)
+        valid = bool(target.hostname) and target.port != 0
+    except ValueError:
+        valid = False
+    if not valid:
+        raise SystemExit("ERP_URL 格式无效。")
+    if target.username is not None or target.password is not None or target.query or target.fragment:
+        raise SystemExit("ERP_URL 不应包含用户名、密码、查询参数或片段。")
+    local_http = target.scheme == "http" and target.hostname in {"localhost", "127.0.0.1", "::1"}
+    if target.scheme != "https" and not local_http:
+        raise SystemExit("ERP_URL 必须使用 HTTPS；仅本机回环地址允许 HTTP。")
 
 
 def call(path, body=None, method=None, timeout=120, tries=4):
@@ -61,7 +78,6 @@ def call(path, body=None, method=None, timeout=120, tries=4):
     data = json.dumps(body).encode("utf-8") if body is not None else None
     token = base64.b64encode(("%s:%s" % (ERP_USER, ERP_PASS)).encode("utf-8")).decode()
 
-    last = None
     for attempt in range(1, tries + 1):
         req = urllib.request.Request(
             ERP_URL + path, data=data, method=method,
@@ -75,8 +91,7 @@ def call(path, body=None, method=None, timeout=120, tries=4):
             return json.loads(raw)
         except urllib.error.HTTPError as e:
             raise RuntimeError("ERP request failed (HTTP %s); response body hidden" % e.code) from None
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            last = getattr(e, "reason", e)
+        except (urllib.error.URLError, TimeoutError, OSError):
             if attempt < tries:
                 wait = attempt * 3
                 log("  网络抖动, %d 秒后重试 %d/%d ..." % (wait, attempt, tries - 1))
