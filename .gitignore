@@ -38,3 +38,6 @@ realesrgan-ncnn-vulkan-*/
 .pytest_cache/
 coverage.xml
 .coverage
+
+# User-owned mockup registry and photographs
+local_templates/
