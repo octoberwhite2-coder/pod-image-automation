@@ -23,18 +23,24 @@
 
 import argparse
 import os
+import re
 import sys
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageChops
 
-import colors
-import paths
+import model_templates
 
 # ================== 【配置区】 ==================
 
-PNG_DIR = os.path.join(paths.COMFY_ROOT, "output", "png")
-OUT_DIR = os.path.join(paths.COMFY_ROOT, "output", "mockup")
-PRINT_DIR = os.path.join(paths.COMFY_ROOT, "output", "print")
+PNG_DIR = None
+OUT_DIR = None
+PRINT_DIR = None
+
+
+def default_paths():
+    """Resolve the legacy ComfyUI location only when that mode is requested."""
+    import paths
+    return tuple(os.path.join(paths.COMFY_ROOT, "output", name) for name in ("png", "mockup", "print"))
 
 # T恤底图由 colors.py 统一管理(底图文件名 + 各店铺色库的别名)。
 # 加颜色只需: 把底图放进 ComfyUI/input/ + 在 colors.py 里去掉对应那行注释。
@@ -98,17 +104,26 @@ def fit_into(image, box_width, box_height):
 
 def place(art, template_image, placement):
     """把裁好的图案按某个印刷位放到底图上"""
+    model_templates.validate_placement(placement, template_image.size)
     left, top, right, bottom = placement["box"]
     fitted = fit_into(art, right - left, bottom - top)
 
     x = left + (right - left - fitted.width) // 2      # 水平永远居中于印刷位
-    if placement["anchor"] == "center":
+    if placement.get("anchor", "center") == "center":
         y = top + (bottom - top - fitted.height) // 2
     else:
         y = top                                        # 顶部对齐
 
     canvas = template_image.convert("RGBA").copy()
-    canvas.alpha_composite(fitted, (x, y))
+    overlay = Image.new("RGBA", canvas.size)
+    overlay.alpha_composite(fitted, (x, y))
+    if placement.get("occlusion_polygons"):
+        mask = Image.new("L", canvas.size, 255)
+        draw = ImageDraw.Draw(mask)
+        for polygon in placement["occlusion_polygons"]:
+            draw.polygon([tuple(point) for point in polygon], fill=0)
+        overlay.putalpha(ImageChops.multiply(overlay.getchannel("A"), mask))
+    canvas.alpha_composite(overlay)
     return canvas.convert("RGB"), fitted
 
 
@@ -123,8 +138,14 @@ def make_print_file(art, placement):
     return canvas
 
 
-def load_templates():
+def load_templates(registry_path=None, template_ids=None):
     """读入所有有底图的颜色, 返回 {颜色key: 底图}"""
+    if registry_path is not None:
+        return model_templates.load(registry_path, template_ids)
+    if template_ids is not None:
+        raise ValueError("--templates requires --registry")
+    import colors
+    import paths
     loaded = {}
     for key, conf in colors.available().items():
         loaded[key] = Image.open(os.path.join(paths.INPUT_DIR, conf["template"]))
@@ -134,26 +155,35 @@ def load_templates():
     return loaded
 
 
-def calibrate():
-    """把所有印刷位画在底图上, 用来肉眼校准"""
+def placements_for(image):
+    """Registered photos have their own placement; legacy callers keep defaults."""
+    entry = image.info.get("pod_template")
+    return {"front": entry["placement"]} if entry else PLACEMENTS
+
+
+def calibrate(templates=None):
+    """Draw photo boundaries and occlusions without inferring physical dimensions."""
+    global OUT_DIR
+    if OUT_DIR is None:
+        OUT_DIR = default_paths()[1]
     os.makedirs(OUT_DIR, exist_ok=True)
-    colors = {"front": (255, 0, 0), "chest": (0, 140, 255)}
-    for name, image in load_templates().items():
+    templates = load_templates() if templates is None else templates
+    for name, image in templates.items():
         canvas = image.convert("RGB").copy()
         draw = ImageDraw.Draw(canvas)
-        for key, placement in PLACEMENTS.items():
+        for key, placement in placements_for(image).items():
+            model_templates.validate_placement(placement, image.size)
             left, top, right, bottom = placement["box"]
-            color = colors.get(key, (0, 200, 0))
-            draw.rectangle([left, top, right, bottom], outline=color, width=3)
-            draw.text((left + 4, top + 4), key, fill=color)
-            log("  %-6s %-6s %s  %dx%d px  (%.1fx%.1f 英寸)"
-                % (name, key, placement["label"], right - left, bottom - top,
-                   placement["inches"][0], placement["inches"][1]))
+            draw.rectangle([left, top, right - 1, bottom - 1], outline=(255, 0, 0), width=3)
+            for polygon in placement.get("occlusion_polygons", []):
+                draw.polygon([tuple(p) for p in polygon], outline=(0, 140, 255), width=2)
+            draw.text((left + 4, top + 4), key, fill=(255, 0, 0))
+            log("  %s %s: %dx%d px; inches=%s" %
+                (name, key, right - left, bottom - top, placement.get("inches", "not specified")))
         out = os.path.join(OUT_DIR, "_calibrate_%s.png" % name)
         canvas.save(out)
-        log("         -> %s" % out)
-    log("")
-    log("红框=正面大图, 蓝框=左胸小图。不对就改 compose_mockups.py 里的 box 数字。")
+        log("  -> %s" % out)
+    log("Red: print boundary; blue: occlusion. Recalibrate when the photo changes.")
 
 
 def item_id_of(filename):
@@ -168,28 +198,45 @@ def compose_one(png_path, templates=None, save_print=True):
     图案整张透明时返回 {}。
     批量入口和出图流程都走这个函数, 保证两边行为一致。
     """
-    templates = templates or load_templates()
-    art = Image.open(png_path)
-    trimmed = trim_alpha(art)
+    global OUT_DIR, PRINT_DIR
+    templates = load_templates() if templates is None else templates
+    if not templates:
+        return {}
+    with Image.open(png_path) as art:
+        trimmed = trim_alpha(art)
     if trimmed is None:
         return {}
 
+    if OUT_DIR is None:
+        OUT_DIR = default_paths()[1]
     os.makedirs(OUT_DIR, exist_ok=True)
-    stem = os.path.basename(png_path).rsplit("_0", 1)[0]
+    stem = re.sub(r"_\d{5,}_$", "", os.path.splitext(os.path.basename(png_path))[0])
 
     results = {}
     for template_name, template_image in templates.items():
-        for key, placement in PLACEMENTS.items():
+        for key, placement in placements_for(template_image).items():
             mockup, _ = place(trimmed, template_image, placement)
             out = os.path.join(OUT_DIR, "%s_%s_%s.png" % (stem, template_name, key))
             mockup.save(out)
             results["%s_%s" % (template_name, key)] = out
 
     if save_print:
-        os.makedirs(PRINT_DIR, exist_ok=True)
-        for key, placement in PLACEMENTS.items():
+        print_jobs = {}
+        for template_name, template_image in templates.items():
+            for key, placement in placements_for(template_image).items():
+                if "inches" not in placement:
+                    log("  %s: no physical inches; keeping source art, skipping print canvas" % template_name)
+                    continue
+                # Preserve legacy names; registered photos get independent print files.
+                name = "%s_%s" % (template_name, key) if "pod_template" in template_image.info else key
+                print_jobs[name] = placement
+        if print_jobs:
+            if PRINT_DIR is None:
+                PRINT_DIR = default_paths()[2]
+            os.makedirs(PRINT_DIR, exist_ok=True)
+        for name, placement in print_jobs.items():
             make_print_file(trimmed, placement).save(
-                os.path.join(PRINT_DIR, "%s_%s_print.png" % (stem, key)),
+                os.path.join(PRINT_DIR, "%s_%s_print.png" % (stem, name)),
                 dpi=(PRINT_DPI, PRINT_DPI))
     return results
 
@@ -199,17 +246,29 @@ def main():
     parser.add_argument("--calibrate", action="store_true", help="只画印刷位方框用来校准")
     parser.add_argument("--only", nargs="*", help="只处理这些编号")
     parser.add_argument("--no-print-file", action="store_true", help="不生成 300dpi 印刷文件")
+    parser.add_argument("--registry", help="User-owned template registry JSON")
+    parser.add_argument("--templates", nargs="+", help="Template IDs from --registry")
+    parser.add_argument("--png-dir", help="Transparent input directory")
+    parser.add_argument("--out-dir", help="Mockup output directory")
+    parser.add_argument("--print-dir", help="Physical print output directory")
     args = parser.parse_args()
+    if args.templates and not args.registry:
+        parser.error("--templates requires --registry")
+    global PNG_DIR, OUT_DIR, PRINT_DIR
+    defaults = tuple(os.path.join("output", name) for name in ("png", "mockup", "print")) if args.registry else default_paths()
+    PNG_DIR = args.png_dir or defaults[0]
+    OUT_DIR = args.out_dir or defaults[1]
+    PRINT_DIR = args.print_dir or defaults[2]
+    templates = load_templates(args.registry, args.templates)
+    if not templates:
+        raise SystemExit("No enabled templates available")
 
     if args.calibrate:
-        calibrate()
+        calibrate(templates)
         return 0
 
     if not os.path.isdir(PNG_DIR):
         raise SystemExit("找不到透明图目录: %s" % PNG_DIR)
-    templates = load_templates()
-    if not templates:
-        raise SystemExit("一张底图都没有")
 
     files = sorted(f for f in os.listdir(PNG_DIR) if f.lower().endswith(".png"))
     if args.only:
@@ -233,15 +292,11 @@ def main():
         done += 1
 
     log("")
-    log("处理完 %d 个图案, 每个出 %d 张套图(%d底图 x %d印刷位)。"
-        % (done, len(templates) * len(PLACEMENTS), len(templates), len(PLACEMENTS)))
-    log("  套图  -> %s" % OUT_DIR)
+    count = sum(len(placements_for(image)) for image in templates.values())
+    log("Processed %d patterns, %d mockups per pattern." % (done, count))
+    log("  Mockups -> %s" % OUT_DIR)
     if not args.no_print_file:
-        log("  印刷件 -> %s" % PRINT_DIR)
-        for key, p in PLACEMENTS.items():
-            log("      %-6s %.1fx%.1f 英寸 = %dx%d px @%ddpi"
-                % (key, p["inches"][0], p["inches"][1],
-                   int(p["inches"][0] * PRINT_DPI), int(p["inches"][1] * PRINT_DPI), PRINT_DPI))
+        log("  Physical print files (only when inches are configured) -> %s" % PRINT_DIR)
     return 0
 
 
